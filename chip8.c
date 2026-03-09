@@ -29,13 +29,24 @@ void chip8_init(Chip8* chip8) {
     for (int i = 0; i < 80; ++i) {
         chip8->memory[0x050 + i] = fontset[i];
     }
-    srand(time(NULL)); 
 }
 
 bool chip8_load_rom(Chip8* chip8, const char* filename) {
     FILE* file = fopen(filename, "rb");
     if (!file) return false;
-    fread(&chip8->memory[0x200], 1, 4096 - 0x200, file);
+
+    // Dateigröße prüfen
+    fseek(file, 0, SEEK_END);
+    long rom_size = ftell(file);
+    rewind(file);
+
+    if (rom_size <= 0 || rom_size > (4096 - 0x200)) {
+        printf("ROM-Datei zu groß oder leer: %ld Bytes (max %d)\n", rom_size, 4096 - 0x200);
+        fclose(file);
+        return false;
+    }
+
+    fread(&chip8->memory[0x200], 1, rom_size, file);
     fclose(file);
     return true;
 }
@@ -94,8 +105,6 @@ void chip8_cycle(Chip8* chip8) {
             break;
         default: printf("Unbekannter Opcode: 0x%X\n", chip8->opcode); break;
     }
-    if (chip8->delay_timer > 0) chip8->delay_timer--;
-    if (chip8->sound_timer > 0) chip8->sound_timer--;
 }
 
 
@@ -121,10 +130,12 @@ void jump_to_address(Chip8* chip8) {
 // 2NNN: Ruft Unterprogramm an Adresse NNN auf (merkt aktuelle Position im Stack)
 void call_subroutine(Chip8* chip8) {
     uint16_t nnn = chip8->opcode & 0x0FFF;
-    if (chip8->sp < 16) {
-        chip8->stack[chip8->sp] = chip8->pc;
-        chip8->sp++;
+    if (chip8->sp >= 16) {
+        printf("Stack Overflow! sp=%d\n", chip8->sp);
+        return;
     }
+    chip8->stack[chip8->sp] = chip8->pc;
+    chip8->sp++;
     chip8->pc = nnn;
 }
 
@@ -175,6 +186,7 @@ void or_vx_vy(Chip8* chip8) {
     uint8_t vx = (chip8->opcode & 0x0F00) >> 8;
     uint8_t vy = (chip8->opcode & 0x00F0) >> 4;
     chip8->V[vx] |= chip8->V[vy];
+    chip8->V[0xF] = 0;
 }
 
 // 8XY2: Führt bitweises UND (AND) zwischen VX und VY aus  speichert es in VX
@@ -182,6 +194,7 @@ void and_vx_vy(Chip8* chip8) {
     uint8_t vx = (chip8->opcode & 0x0F00) >> 8;
     uint8_t vy = (chip8->opcode & 0x00F0) >> 4;
     chip8->V[vx] &= chip8->V[vy];
+    chip8->V[0xF] = 0;
 }
 
 // 8XY3: Führt bitweises Exklusiv-ODER (XOR) zwischen VX und VY aus speichert in VX
@@ -189,6 +202,7 @@ void xor_vx_vy(Chip8* chip8) {
     uint8_t vx = (chip8->opcode & 0x0F00) >> 8;
     uint8_t vy = (chip8->opcode & 0x00F0) >> 4;
     chip8->V[vx] ^= chip8->V[vy];
+    chip8->V[0xF] = 0;
 }
 
 // 8XY4: add VY zu VX wenn Ergebnis größer als 255 - wird das Overflow-Flag (VF) 1 gesetzt
@@ -209,11 +223,14 @@ void subtract_vy_from_vx(Chip8* chip8) {
     chip8->V[vx] -= chip8->V[vy];
 }
 
-// 8XY6: move Bits in VX um 1 rechts (halbiert Wert) das herausfallende bit gespeichert in VF 
+// 8XY6: move Bits in VX um 1 rechts (halbiert Wert) das herausfallende bit gespeichert in VF
+// Original CHIP-8: VX = VY >> 1
 void shift_vx_right(Chip8* chip8) {
     uint8_t vx = (chip8->opcode & 0x0F00) >> 8;
-    chip8->V[0xF] = (chip8->V[vx] & 0x1);
-    chip8->V[vx] >>= 1;
+    uint8_t vy = (chip8->opcode & 0x00F0) >> 4;
+    uint8_t flag = chip8->V[vy] & 0x1;
+    chip8->V[vx] = chip8->V[vy] >> 1;
+    chip8->V[0xF] = flag;
 }
 
 // 8XY7: subtrahiert VX von VY speichert das Ergebnis in VX and VF = 1 if VY größer/gleich VX war
@@ -225,10 +242,13 @@ void subtract_vx_from_vy(Chip8* chip8) {
 }
 
 // 8XYE: move Bits in VX um 1 nach links (verdoppelt den Wert) das höchste Bit landet in VF
+// Original CHIP-8: VX = VY << 1
 void shift_vx_left(Chip8* chip8) {
     uint8_t vx = (chip8->opcode & 0x0F00) >> 8;
-    chip8->V[0xF] = (chip8->V[vx] & 0x80) >> 7;
-    chip8->V[vx] <<= 1;
+    uint8_t vy = (chip8->opcode & 0x00F0) >> 4;
+    uint8_t flag = (chip8->V[vy] & 0x80) >> 7;
+    chip8->V[vx] = chip8->V[vy] << 1;
+    chip8->V[0xF] = flag;
 }
 
 // 9XY0: Überspringt nächsten Befehl wenn Register VX ungleich Register VY ist

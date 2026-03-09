@@ -20,3 +20,5 @@ sudo apt install libraylib-dev build-essential cmake
 
 ## Tests & Credits
 Um die Genauigkeit der CPU-Implementierung sicherzustellen, wurde dieser Emulator mit der **[Timendus CHIP-8 Test Suite](https://github.com/Timendus/chip8-test-suite)** verifiziert.
+
+![alt text](image-1.png)

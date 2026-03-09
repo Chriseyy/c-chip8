@@ -19,7 +19,7 @@ typedef struct {
     uint8_t keypad[16];         // 16 Tasten (gedrückt = 1, nicht = 0)
     uint32_t video[64 * 32];    // Bildschirm (2048 Pixel)
     
-    uint16_t opcode;            // aktuell geladene bbefehl
+    uint16_t opcode;            // aktuell geladener Befehl
 } Chip8;
 
 // main funct

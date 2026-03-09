@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
+#include <stdlib.h>
 #include "raylib.h"
 #include "chip8.h"
 
@@ -32,6 +34,7 @@ int main(int argc, char** argv) {
 
     Chip8 chip8;
     chip8_init(&chip8);
+    srand(time(NULL));
     
     if (!chip8_load_rom(&chip8, argv[1])) {
         printf("Konnte ROM %s nicht laden!\n", argv[1]);
@@ -76,6 +79,9 @@ int main(int argc, char** argv) {
         for (int i = 0; i < 10; i++) {
             chip8_cycle(&chip8);
         }
+
+        if (chip8.delay_timer > 0) chip8.delay_timer--;
+        if (chip8.sound_timer > 0) chip8.sound_timer--;
 
         // Sound an/aus je nach sound_timer
         sound_playing = (chip8.sound_timer > 0);
